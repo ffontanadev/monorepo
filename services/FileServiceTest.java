@@ -2,21 +2,33 @@ package uy.com.bbva.services.documents.services;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.Spy;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 import uy.com.bbva.accountscommons.idmanagement.datatypes.AccountIdDatatype;
+import uy.com.bbva.accountscommons.idmanagement.idmanagement.AccountIdManagement;
 import uy.com.bbva.customerscommons.dtos.models.v1.*;
 import uy.com.bbva.customerscommons.idmanagement.datatypes.CustomerIdDatatype;
+import uy.com.bbva.customerscommons.idmanagement.idmanagement.CustomerIdManagement;
 import uy.com.bbva.documentscommons.dtos.models.Categorization;
 import uy.com.bbva.documentscommons.dtos.models.MetaData;
 import uy.com.bbva.documentscommons.dtos.models.*;
+import uy.com.bbva.logcommons.log.utils.LogUtils;
 import uy.com.bbva.nonbusinessescommons.idmanagement.datatypes.NonBusinessIdDatatype;
+import uy.com.bbva.noncustomerscommons.idmanagement.idmanagement.NonCustomerIdManagement;
 import uy.com.bbva.services.commons.exceptions.ServiceException;
+import uy.com.bbva.services.documents.commons.TestDataFactory;
+import uy.com.bbva.services.documents.dao.DAO;
+import uy.com.bbva.services.documents.external.services.CallCustomersService;
+import uy.com.bbva.services.documents.external.services.impl.GDocumentalServiceImpl;
 import uy.com.bbva.services.documents.service.DraftOptions;
 import uy.com.bbva.services.documents.service.impl.*;
+import uy.com.bbva.services.documents.utils.FileUtils;
 import uy.com.bbva.services.documents.utils.MapTemplateByCardProduct;
-import uy.com.bbva.services.documents.commons.ServiceTest;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -27,14 +39,59 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
 
-class FileServiceTest extends ServiceTest {
+@ExtendWith(MockitoExtension.class)
+class FileServiceTest {
+
+    // Mocks from ServiceTest base class
+    @Mock
+    private DAO dao;
+
+    @Mock
+    private LogUtils logUtils;
+
+    @Mock
+    private AccountIdManagement accountIdManagement;
+
+    @Mock
+    private CustomerIdManagement customerIdManagement;
+
+    @Mock
+    private NonCustomerIdManagement nonCustomerIdManagement;
+
+    @Mock
+    private FileUtils fileUtils;
+
+    @Mock
+    private GDocumentalServiceImpl gDocumentalService;
+
+    @Mock
+    private CallCustomersService callCustomersService;
+
+    @Spy
+    private GenerateContractApiServiceImpl generateContractApiService;
 
     @InjectMocks
     private FileApiServiceImpl fileApiService;
 
+    private NonBusinessIdDatatype nonBusinessIdDatatype;
+    private List<SpecificMetadata> specificMetadataList;
+
     @BeforeEach
     void setup() {
-        ReflectionTestUtils.setField(fileApiService, "mapTemplateByCardProduct", getMapTemplateByCardProduct());
+        // Initialize spy and setup contract generation services (from ServiceTest.beforeEach)
+        generateContractApiService = Mockito.spy(new GenerateContractApiServiceImpl());
+        TestDataFactory.setupContractGenerationServices(generateContractApiService, dao);
+
+        // Initialize test data (from ServiceTest.beforeEach)
+        nonBusinessIdDatatype = new NonBusinessIdDatatype();
+        nonBusinessIdDatatype.setBusinessCountry(858);
+        nonBusinessIdDatatype.setBusinessDocumentType(2);
+        nonBusinessIdDatatype.setBusinessDocument("12345678");
+
+        specificMetadataList = new ArrayList<>();
+
+        // Setup FileApiServiceImpl dependencies (original setup method)
+        ReflectionTestUtils.setField(fileApiService, "mapTemplateByCardProduct", TestDataFactory.getMapTemplateByCardProduct());
         ReflectionTestUtils.setField(fileApiService, "dao", dao);
         ReflectionTestUtils.setField(fileApiService, "fileUtils", fileUtils);
         ReflectionTestUtils.setField(fileApiService, "generateContractApiService", generateContractApiService);
@@ -64,7 +121,7 @@ class FileServiceTest extends ServiceTest {
         String expectedFileName = "12345_CONTRACT.pdf";
 
         when(customerIdManagement.getCustomerIdFromCustomerIdDatatype(any())).thenReturn("customer-id");
-        CustomerData customerData = mockCustomerData(true);
+        CustomerData customerData = TestDataFactory.mockCustomerData(true);
         when(callCustomersService.getCustomerByCustomerId(any())).thenReturn(customerData);
         final Map<String, String> propertiesMap = new HashMap<>();
         when(dao.getStaticProperties(anyString())).thenReturn(propertiesMap);
@@ -115,7 +172,7 @@ class FileServiceTest extends ServiceTest {
 
         // Puedes mockear internamente métodos si están en colaborador: ej. customerIdManagement
         when(customerIdManagement.getCustomerIdFromCustomerIdDatatype(any())).thenReturn("customer-id");
-        CustomerData customerData = mockCustomerData(false);
+        CustomerData customerData = TestDataFactory.mockCustomerData(false);
         when(callCustomersService.getCustomerByCustomerId(any())).thenReturn(customerData);
         final Map<String, String> propertiesMap = new HashMap<>();
         when(dao.getStaticProperties(anyString())).thenReturn(propertiesMap);
