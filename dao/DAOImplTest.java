@@ -2,7 +2,11 @@ package uy.com.bbva.services.documents.dao;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 import uy.com.bbva.accountscommons.idmanagement.datatypes.AccountIdDatatype;
 import uy.com.bbva.customerscommons.idmanagement.datatypes.CustomerIdDatatype;
@@ -11,15 +15,22 @@ import uy.com.bbva.documentscommons.dtos.models.DocumentInfo;
 import uy.com.bbva.documentscommons.dtos.models.MetaData;
 import uy.com.bbva.dtos.commons.model.GenericObject;
 import uy.com.bbva.filenetcommons.dtos.models.FilenetFile;
+import uy.com.bbva.logcommons.log.utils.LogUtils;
 import uy.com.bbva.mongo.commons.criteria.CriteriaBBVA;
+import uy.com.bbva.mongo.commons.ManagerMongoDBAccess;
+import uy.com.bbva.mongo.commons.MongoTemplateBBVA;
 import uy.com.bbva.nonbusinessescommons.idmanagement.datatypes.NonBusinessIdDatatype;
+import uy.com.bbva.services.commons.dao.ManagerDataAccessAs400;
 import uy.com.bbva.services.commons.exceptions.ServiceException;
-import uy.com.bbva.services.documents.commons.DAOTest;
+import uy.com.bbva.services.documents.commons.TestDataFactory;
+import uy.com.bbva.services.documents.dao.impl.DAOImpl;
 import uy.com.bbva.services.documents.model.*;
 import uy.com.bbva.services.documents.utils.ErrorConstants;
 
 
 import java.io.IOException;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,12 +40,34 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-class DAOImplTest extends DAOTest {
+@ExtendWith(MockitoExtension.class)
+class DAOImplTest {
+
+    @Mock
+    private ManagerDataAccessAs400 manager;
+
+    @Mock
+    private ManagerMongoDBAccess managerMongoDBAccess;
+
+    @Mock
+    private MongoTemplateBBVA mongoTemplate;
+
+    @Mock
+    private LogUtils logUtils;
+
+    @Mock
+    private PreparedStatement preparedStatement;
+
+    @Mock
+    private ResultSet resultSet;
+
+    @InjectMocks
+    private DAOImpl dao;
 
     @BeforeEach
-    protected void beforeEach() {
-        ReflectionTestUtils.setField(dao, "documentDbName", DOCUMENT_DB_NAME);
-        ReflectionTestUtils.setField(dao, "filenetDbName", FILENET_DB_NAME);
+    void beforeEach() {
+        ReflectionTestUtils.setField(dao, "documentDbName", TestDataFactory.DOCUMENT_DB_NAME);
+        ReflectionTestUtils.setField(dao, "filenetDbName", TestDataFactory.FILENET_DB_NAME);
     }
 
     @Test
@@ -276,7 +309,7 @@ class DAOImplTest extends DAOTest {
     @Test
     void getNonBusinessDataMap_validData_returnsCompleteMap() throws Exception {
         // Arrange
-        NonBusinessIdDatatype nonBusinessId = createNonBusinessIdDatatype();
+        NonBusinessIdDatatype nonBusinessId = TestDataFactory.createNonBusinessIdDatatype();
         setupMockResultSetForBusinessData(true);
 
         when(manager.prepareStatement(SQLStatementsBBVA.GET_NON_BUSINESS_DATA))
@@ -307,7 +340,7 @@ class DAOImplTest extends DAOTest {
 
     @Test
     void getNonBusinessDataMap_noDataFound_returnsEmptyMap() throws Exception {
-        NonBusinessIdDatatype nonBusinessId = createNonBusinessIdDatatype();
+        NonBusinessIdDatatype nonBusinessId = TestDataFactory.createNonBusinessIdDatatype();
 
         when(manager.prepareStatement(SQLStatementsBBVA.GET_NON_BUSINESS_DATA))
                 .thenReturn(preparedStatement);
@@ -323,7 +356,7 @@ class DAOImplTest extends DAOTest {
 
     @Test
     void getNonBusinessDataMap_withNullAndEmptyValues_trimsCorrectly() throws Exception {
-        NonBusinessIdDatatype nonBusinessId = createNonBusinessIdDatatype();
+        NonBusinessIdDatatype nonBusinessId = TestDataFactory.createNonBusinessIdDatatype();
         setupMockResultSetForBusinessData(false);
 
         when(manager.prepareStatement(SQLStatementsBBVA.GET_NON_BUSINESS_DATA))
@@ -343,7 +376,7 @@ class DAOImplTest extends DAOTest {
 
     @Test
     void getNonBusinessDataMap_sqlException_throwsServiceException() throws Exception {
-        NonBusinessIdDatatype nonBusinessId = createNonBusinessIdDatatype();
+        NonBusinessIdDatatype nonBusinessId = TestDataFactory.createNonBusinessIdDatatype();
         SQLException sqlException = new SQLException("Database connection failed");
 
         when(manager.prepareStatement(SQLStatementsBBVA.GET_NON_BUSINESS_DATA))
@@ -365,7 +398,7 @@ class DAOImplTest extends DAOTest {
 
     @Test
     void getNonBusinessLegalAddressMap_validData_returnsCompleteAddressMap() throws Exception {
-        NonBusinessIdDatatype nonBusinessId = createNonBusinessIdDatatype();
+        NonBusinessIdDatatype nonBusinessId = TestDataFactory.createNonBusinessIdDatatype();
         setupMockResultSetForAddressData();
 
         when(manager.prepareStatement(SQLStatementsBBVA.GET_ADDRESS))
@@ -398,7 +431,7 @@ class DAOImplTest extends DAOTest {
 
     @Test
     void getNonBusinessLegalAddressMap_noAddressFound_returnsEmptyMap() throws Exception {
-        NonBusinessIdDatatype nonBusinessId = createNonBusinessIdDatatype();
+        NonBusinessIdDatatype nonBusinessId = TestDataFactory.createNonBusinessIdDatatype();
 
         when(manager.prepareStatement(SQLStatementsBBVA.GET_ADDRESS))
                 .thenReturn(preparedStatement);
@@ -415,7 +448,7 @@ class DAOImplTest extends DAOTest {
 
     @Test
     void getNonBusinessLegalAddressMap_sqlException_throwsServiceException() throws Exception {
-        NonBusinessIdDatatype nonBusinessId = createNonBusinessIdDatatype();
+        NonBusinessIdDatatype nonBusinessId = TestDataFactory.createNonBusinessIdDatatype();
         SQLException sqlException = new SQLException("Address query failed");
 
         when(manager.prepareStatement(SQLStatementsBBVA.GET_ADDRESS))
@@ -434,7 +467,7 @@ class DAOImplTest extends DAOTest {
 
     @Test
     void getNonBusinessHomeAddressMap_validData_returnsCompleteAddressMap() throws Exception {
-        NonBusinessIdDatatype nonBusinessId = createNonBusinessIdDatatype();
+        NonBusinessIdDatatype nonBusinessId = TestDataFactory.createNonBusinessIdDatatype();
         setupMockResultSetForAddressData();
 
         when(manager.prepareStatement(SQLStatementsBBVA.GET_ADDRESS))
@@ -460,7 +493,7 @@ class DAOImplTest extends DAOTest {
 
     @Test
     void getNonBusinessHomeAddressMap_noAddressFound_returnsEmptyMap() throws Exception {
-        NonBusinessIdDatatype nonBusinessId = createNonBusinessIdDatatype();
+        NonBusinessIdDatatype nonBusinessId = TestDataFactory.createNonBusinessIdDatatype();
 
         when(manager.prepareStatement(SQLStatementsBBVA.GET_ADDRESS))
                 .thenReturn(preparedStatement);
@@ -477,7 +510,7 @@ class DAOImplTest extends DAOTest {
 
     @Test
     void getNonBusinessHomeAddressMap_sqlException_throwsServiceException() throws Exception {
-        NonBusinessIdDatatype nonBusinessId = createNonBusinessIdDatatype();
+        NonBusinessIdDatatype nonBusinessId = TestDataFactory.createNonBusinessIdDatatype();
         SQLException sqlException = new SQLException("Home address query failed");
 
         when(manager.prepareStatement(SQLStatementsBBVA.GET_ADDRESS))
@@ -496,13 +529,13 @@ class DAOImplTest extends DAOTest {
 
     @Test
     void saveDraftDocument_withCustomerDatatype_savesDraftSuccessfully() throws Exception {
-        MetaData metaData = createMetaData();
-        FileData fileData = createFileData();
+        MetaData metaData = TestDataFactory.createMetaData();
+        FileData fileData = TestDataFactory.createFileData();
         String documentId = "test-doc-id-123";
-        AccountIdDatatype accountIdDatatype = createAccountIdDatatype();
-        CustomerIdDatatype customerIdDatatype = createCustomerIdDatatype();
+        AccountIdDatatype accountIdDatatype = TestDataFactory.createAccountIdDatatype();
+        CustomerIdDatatype customerIdDatatype = TestDataFactory.createCustomerIdDatatype();
 
-        when(managerMongoDBAccess.getMongoTemplateBBVA(DOCUMENT_DB_NAME))
+        when(managerMongoDBAccess.getMongoTemplateBBVA(TestDataFactory.DOCUMENT_DB_NAME))
                 .thenReturn(mongoTemplate);
 
 
@@ -531,13 +564,13 @@ class DAOImplTest extends DAOTest {
 
     @Test
     void saveDraftDocument_withNonBusinessDatatype_savesDraftSuccessfully() throws Exception {
-        MetaData metaData = createMetaData();
-        FileData fileData = createFileData();
+        MetaData metaData = TestDataFactory.createMetaData();
+        FileData fileData = TestDataFactory.createFileData();
         String documentId = "test-doc-id-456";
-        AccountIdDatatype accountIdDatatype = createAccountIdDatatype();
-        NonBusinessIdDatatype nonBusinessIdDatatype = createNonBusinessIdDatatype();
+        AccountIdDatatype accountIdDatatype = TestDataFactory.createAccountIdDatatype();
+        NonBusinessIdDatatype nonBusinessIdDatatype = TestDataFactory.createNonBusinessIdDatatype();
 
-        when(managerMongoDBAccess.getMongoTemplateBBVA(DOCUMENT_DB_NAME))
+        when(managerMongoDBAccess.getMongoTemplateBBVA(TestDataFactory.DOCUMENT_DB_NAME))
                 .thenReturn(mongoTemplate);
 
         String result = dao.saveDraftDocument(metaData, fileData, documentId,
@@ -560,12 +593,12 @@ class DAOImplTest extends DAOTest {
 
     @Test
     void saveDraftDocument_withoutAccountDatatype_savesDraftWithoutAccountNumber() throws Exception {
-        MetaData metaData = createMetaData();
-        FileData fileData = createFileData();
+        MetaData metaData = TestDataFactory.createMetaData();
+        FileData fileData = TestDataFactory.createFileData();
         String documentId = "test-doc-id-789";
-        CustomerIdDatatype customerIdDatatype = createCustomerIdDatatype();
+        CustomerIdDatatype customerIdDatatype = TestDataFactory.createCustomerIdDatatype();
 
-        when(managerMongoDBAccess.getMongoTemplateBBVA(DOCUMENT_DB_NAME))
+        when(managerMongoDBAccess.getMongoTemplateBBVA(TestDataFactory.DOCUMENT_DB_NAME))
                 .thenReturn(mongoTemplate);
 
         String result = dao.saveDraftDocument(metaData, fileData, documentId,
@@ -586,15 +619,15 @@ class DAOImplTest extends DAOTest {
 
     @Test
     void saveDraftDocument_withBase64Data_preservesDataIntegrity() throws Exception {
-        MetaData metaData = createMetaData();
+        MetaData metaData = TestDataFactory.createMetaData();
         FileData fileData = new FileData();
         fileData.setBase64Data("VGhpcyBpcyBhIHRlc3QgZG9jdW1lbnQgd2l0aCBzcGVjaWFsIGNoYXJzOiDDsSDDqSDDrSDDsw==");
         fileData.setName("special-chars.pdf");
 
         String documentId = "test-doc-special";
-        CustomerIdDatatype customerIdDatatype = createCustomerIdDatatype();
+        CustomerIdDatatype customerIdDatatype = TestDataFactory.createCustomerIdDatatype();
 
-        when(managerMongoDBAccess.getMongoTemplateBBVA(DOCUMENT_DB_NAME))
+        when(managerMongoDBAccess.getMongoTemplateBBVA(TestDataFactory.DOCUMENT_DB_NAME))
                 .thenReturn(mongoTemplate);
 
         String result = dao.saveDraftDocument(metaData, fileData, documentId,
@@ -614,12 +647,12 @@ class DAOImplTest extends DAOTest {
 
     @Test
     void saveDraftDocument_ioException_propagatesException() {
-        MetaData metaData = createMetaData();
-        FileData fileData = createFileData();
+        MetaData metaData = TestDataFactory.createMetaData();
+        FileData fileData = TestDataFactory.createFileData();
         String documentId = "test-doc-error";
-        CustomerIdDatatype customerIdDatatype = createCustomerIdDatatype();
+        CustomerIdDatatype customerIdDatatype = TestDataFactory.createCustomerIdDatatype();
 
-        when(managerMongoDBAccess.getMongoTemplateBBVA(DOCUMENT_DB_NAME))
+        when(managerMongoDBAccess.getMongoTemplateBBVA(TestDataFactory.DOCUMENT_DB_NAME))
                 .thenReturn(mongoTemplate);
 
         doThrow(new RuntimeException("MongoDB save failed"))
@@ -633,11 +666,11 @@ class DAOImplTest extends DAOTest {
 
     @Test
     void saveDraftDocument_withBothDatatypesNull_throwsNullPointerException() {
-        MetaData metaData = createMetaData();
-        FileData fileData = createFileData();
+        MetaData metaData = TestDataFactory.createMetaData();
+        FileData fileData = TestDataFactory.createFileData();
         String documentId = "test-doc-no-id";
 
-        when(managerMongoDBAccess.getMongoTemplateBBVA(DOCUMENT_DB_NAME))
+        when(managerMongoDBAccess.getMongoTemplateBBVA(TestDataFactory.DOCUMENT_DB_NAME))
                 .thenReturn(mongoTemplate);
 
         assertThrows(NullPointerException.class,
@@ -648,7 +681,7 @@ class DAOImplTest extends DAOTest {
 
     @Test
     void getNonBusinessPersonDataMap_validData_returnsCompletePersonMap() throws Exception {
-        NonBusinessIdDatatype nonBusinessId = createNonBusinessIdDatatype();
+        NonBusinessIdDatatype nonBusinessId = TestDataFactory.createNonBusinessIdDatatype();
         setupMockResultSetForPersonData(true, true);
 
         when(manager.prepareStatement(SQLStatementsBBVA.GET_NON_BUSINESS_PERSON_DATA))
@@ -688,7 +721,7 @@ class DAOImplTest extends DAOTest {
 
     @Test
     void getNonBusinessPersonDataMap_singlePersonWithoutSpouse_returnsPersonDataWithEmptySpouseFields() throws Exception {
-        NonBusinessIdDatatype nonBusinessId = createNonBusinessIdDatatype();
+        NonBusinessIdDatatype nonBusinessId = TestDataFactory.createNonBusinessIdDatatype();
         setupMockResultSetForPersonData(true, false);
 
         when(manager.prepareStatement(SQLStatementsBBVA.GET_NON_BUSINESS_PERSON_DATA))
@@ -716,7 +749,7 @@ class DAOImplTest extends DAOTest {
 
     @Test
     void getNonBusinessPersonDataMap_noDataFound_returnsEmptyMap() throws Exception {
-        NonBusinessIdDatatype nonBusinessId = createNonBusinessIdDatatype();
+        NonBusinessIdDatatype nonBusinessId = TestDataFactory.createNonBusinessIdDatatype();
 
         when(manager.prepareStatement(SQLStatementsBBVA.GET_NON_BUSINESS_PERSON_DATA))
                 .thenReturn(preparedStatement);
@@ -733,7 +766,7 @@ class DAOImplTest extends DAOTest {
 
     @Test
     void getNonBusinessPersonDataMap_withNullAndEmptyValues_trimsCorrectly() throws Exception {
-        NonBusinessIdDatatype nonBusinessId = createNonBusinessIdDatatype();
+        NonBusinessIdDatatype nonBusinessId = TestDataFactory.createNonBusinessIdDatatype();
 
         when(manager.prepareStatement(SQLStatementsBBVA.GET_NON_BUSINESS_PERSON_DATA))
                 .thenReturn(preparedStatement);
@@ -779,7 +812,7 @@ class DAOImplTest extends DAOTest {
 
     @Test
     void getNonBusinessPersonDataMap_sqlExceptionOnExecuteQuery_throwsServiceException() throws Exception {
-        NonBusinessIdDatatype nonBusinessId = createNonBusinessIdDatatype();
+        NonBusinessIdDatatype nonBusinessId = TestDataFactory.createNonBusinessIdDatatype();
         SQLException sqlException = new SQLException("Query execution failed");
 
         when(manager.prepareStatement(SQLStatementsBBVA.GET_NON_BUSINESS_PERSON_DATA))
@@ -801,7 +834,7 @@ class DAOImplTest extends DAOTest {
 
     @Test
     void getNonBusinessPersonDataMap_sqlExceptionOnPrepareStatement_throwsServiceException() throws Exception {
-        NonBusinessIdDatatype nonBusinessId = createNonBusinessIdDatatype();
+        NonBusinessIdDatatype nonBusinessId = TestDataFactory.createNonBusinessIdDatatype();
         SQLException sqlException = new SQLException("Failed to prepare statement");
 
         when(manager.prepareStatement(SQLStatementsBBVA.GET_NON_BUSINESS_PERSON_DATA))
@@ -819,7 +852,7 @@ class DAOImplTest extends DAOTest {
 
     @Test
     void getNonBusinessPersonDataMap_sqlExceptionOnSetParameter_throwsServiceException() throws Exception {
-        NonBusinessIdDatatype nonBusinessId = createNonBusinessIdDatatype();
+        NonBusinessIdDatatype nonBusinessId = TestDataFactory.createNonBusinessIdDatatype();
         SQLException sqlException = new SQLException("Parameter binding failed");
 
         when(manager.prepareStatement(SQLStatementsBBVA.GET_NON_BUSINESS_PERSON_DATA))
@@ -834,5 +867,102 @@ class DAOImplTest extends DAOTest {
         assertEquals(sqlException, exception.getCause());
 
         verify(manager).closeResources(preparedStatement, null);
+    }
+
+    // ========== HELPER METHODS FOR RESULTSET STUBBING ==========
+
+    private void setupMockResultSetForBusinessData(boolean withValidData) throws SQLException {
+        when(resultSet.next()).thenReturn(true);
+
+        if (withValidData) {
+            when(resultSet.getString("BBNCPJCTA")).thenReturn("123456");
+            when(resultSet.getString("BRANCH_NAME")).thenReturn("Test Branch");
+            when(resultSet.getString("BBNCPJRASO")).thenReturn("Test Business Name");
+            when(resultSet.getString("DOCUMENT_COUNTRY")).thenReturn("UY");
+            when(resultSet.getString("DOCUMENT_TYPE")).thenReturn("RUT");
+            when(resultSet.getString("BBNCPJNDOC")).thenReturn("12345678");
+            when(resultSet.getString("BBNCPJFCON")).thenReturn("20200101");
+            when(resultSet.getString("BBNCPJFINR")).thenReturn("20200115");
+            when(resultSet.getString("BBNCPJIBPS")).thenReturn("987654");
+            when(resultSet.getString("BBNCPJNOMC")).thenReturn("Test Commercial Name");
+            when(resultSet.getString("BBNCPJFING")).thenReturn("20230101");
+            when(resultSet.getString("BBNCPJIANU")).thenReturn("100000");
+            when(resultSet.getString("MAIN_ACTIVITY")).thenReturn("Test Activity");
+            when(resultSet.getString("ACTIVITY_DESCRIPTION")).thenReturn("Test Description");
+            when(resultSet.getString("BBNCPJFRUT")).thenReturn("20251231");
+        } else {
+            when(resultSet.getString("BBNCPJCTA")).thenReturn(null);
+            when(resultSet.getString("BRANCH_NAME")).thenReturn("");
+            when(resultSet.getString("BBNCPJRASO")).thenReturn("  ");
+            when(resultSet.getString("DOCUMENT_COUNTRY")).thenReturn("UY");
+            when(resultSet.getString("DOCUMENT_TYPE")).thenReturn("RUT");
+            when(resultSet.getString("BBNCPJNDOC")).thenReturn("12345678");
+            when(resultSet.getString("BBNCPJFCON")).thenReturn("20200101");
+            when(resultSet.getString("BBNCPJFINR")).thenReturn("20200115");
+            when(resultSet.getString("BBNCPJIBPS")).thenReturn(null);
+            when(resultSet.getString("BBNCPJNOMC")).thenReturn("");
+            when(resultSet.getString("BBNCPJFING")).thenReturn("20230101");
+            when(resultSet.getString("BBNCPJIANU")).thenReturn("100000");
+            when(resultSet.getString("MAIN_ACTIVITY")).thenReturn("Activity");
+            when(resultSet.getString("ACTIVITY_DESCRIPTION")).thenReturn("");
+            when(resultSet.getString("BBNCPJFRUT")).thenReturn("20251231");
+        }
+    }
+
+    private void setupMockResultSetForAddressData() throws SQLException {
+        when(resultSet.next()).thenReturn(true);
+        when(resultSet.getString("SNGC01DSC")).thenReturn("Level1");
+        when(resultSet.getString("SNGC02DSC")).thenReturn("Level2");
+        when(resultSet.getString("SNGC03DSC")).thenReturn("Level3");
+        when(resultSet.getString("BBNCEDDSC1")).thenReturn("Description1");
+        when(resultSet.getString("BBNCEDDSC2")).thenReturn("Description2");
+        when(resultSet.getString("BBNCEDDSC3")).thenReturn("Description3");
+        when(resultSet.getString("PANOM")).thenReturn("Uruguay");
+        when(resultSet.getString("DEPNOM")).thenReturn("Montevideo");
+        when(resultSet.getString("ADDRESS_LOCATION_TYPE")).thenReturn("Street");
+        when(resultSet.getString("ADDRESS_CITY_NEIGHBORHOOD")).thenReturn("Centro");
+        when(resultSet.getString("BBNCEDPOS")).thenReturn("11200");
+    }
+
+    private void setupMockResultSetForPersonData(boolean withValidData, boolean withSpouseData) throws SQLException {
+        when(resultSet.next()).thenReturn(true);
+
+        if (withValidData) {
+            when(resultSet.getString("BBNCPFAPE1")).thenReturn("García");
+            when(resultSet.getString("BBNCPFAPE2")).thenReturn("López");
+            when(resultSet.getString("BBNCPFNOM1")).thenReturn("Juan");
+            when(resultSet.getString("BBNCPFNOM2")).thenReturn("Carlos");
+            when(resultSet.getString("DOCUMENT_COUNTRY")).thenReturn("UY");
+            when(resultSet.getString("DOCUMENT_TYPE")).thenReturn("CI");
+            when(resultSet.getString("BBNCPFNDOC")).thenReturn("87654321");
+
+            when(resultSet.getString("BBNCPFFNAC")).thenReturn("19850515");
+            when(resultSet.getString("BBNCPFFVCI")).thenReturn("20301231");
+
+            when(resultSet.getString("MARITAL_STATUS")).thenReturn(withSpouseData ? "Casado" : "Soltero");
+            when(resultSet.getString("BBNCPFSEXO")).thenReturn("M");
+            when(resultSet.getString("BIRTH_COUNTRY")).thenReturn("Uruguay");
+
+            if (withSpouseData) {
+                when(resultSet.getString("BBNCPFCOA1")).thenReturn("Fernández");
+                when(resultSet.getString("BBNCPFCOA2")).thenReturn("Martínez");
+                when(resultSet.getString("BBNCPFCON1")).thenReturn("María");
+                when(resultSet.getString("BBNCPFCON2")).thenReturn("Elena");
+                when(resultSet.getString("SPOUSE_DOCUMENT_TYPE")).thenReturn("CI");
+                when(resultSet.getString("SPOUSE_DOCUMENT_COUNTRY")).thenReturn("UY");
+                when(resultSet.getString("BBNCPFCOND")).thenReturn("12349876");
+            } else {
+                when(resultSet.getString("BBNCPFCOA1")).thenReturn("");
+                when(resultSet.getString("BBNCPFCOA2")).thenReturn("");
+                when(resultSet.getString("BBNCPFCON1")).thenReturn("");
+                when(resultSet.getString("BBNCPFCON2")).thenReturn("");
+                when(resultSet.getString("SPOUSE_DOCUMENT_TYPE")).thenReturn("");
+                when(resultSet.getString("SPOUSE_DOCUMENT_COUNTRY")).thenReturn("");
+                when(resultSet.getString("BBNCPFCOND")).thenReturn("");
+            }
+
+            when(resultSet.getString("BBNCPFTEL1")).thenReturn("099123456");
+            when(resultSet.getString("BBNCPFMAIL")).thenReturn("juan.garcia@email.com");
+        }
     }
 }

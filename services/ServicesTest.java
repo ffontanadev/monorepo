@@ -3,46 +3,80 @@ package uy.com.bbva.services.documents.services;
 import com.bbva.secarq.caas2.core.exception.CaasException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.mockito.Spy;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.multipart.MultipartFile;
 import uy.com.bbva.accountscommons.idmanagement.datatypes.AccountIdDatatype;
+import uy.com.bbva.accountscommons.idmanagement.idmanagement.AccountIdManagement;
 import uy.com.bbva.customerscommons.idmanagement.datatypes.CustomerIdDatatype;
+import uy.com.bbva.customerscommons.idmanagement.idmanagement.CustomerIdManagement;
 import uy.com.bbva.documentscommons.dtos.models.*;
 import uy.com.bbva.documentscommons.dtos.responses.DocumentResponse;
 import uy.com.bbva.dtos.commons.model.GenericObject;
 import uy.com.bbva.filenetcommons.dtos.models.FilenetFile;
+import uy.com.bbva.logcommons.log.utils.LogUtils;
 import uy.com.bbva.nonbusinessescommons.idmanagement.datatypes.NonBusinessIdDatatype;
 import uy.com.bbva.noncustomerscommons.idmanagement.datatypes.NonCustomerIdDatatype;
+import uy.com.bbva.noncustomerscommons.idmanagement.idmanagement.NonCustomerIdManagement;
 import uy.com.bbva.pdf.management.commons.PDFGenerator;
 import uy.com.bbva.pdf.management.commons.exceptions.PDFManageException;
 import uy.com.bbva.services.commons.exceptions.BusinessException;
 import uy.com.bbva.services.commons.exceptions.NotFoundException;
 import uy.com.bbva.services.commons.exceptions.ServiceException;
 import uy.com.bbva.services.commons.model.HeaderValues;
-import uy.com.bbva.services.documents.commons.ServiceTest;
+import uy.com.bbva.services.documents.commons.TestDataFactory;
+import uy.com.bbva.services.documents.dao.DAO;
 import uy.com.bbva.services.documents.dtos.response.DocumentResponseGroup;
 import uy.com.bbva.services.documents.dtos.response.FileNetResponse;
+import uy.com.bbva.services.documents.external.services.CallCustomersService;
+import uy.com.bbva.services.documents.external.services.impl.GDocumentalServiceImpl;
 import uy.com.bbva.services.documents.model.*;
-import uy.com.bbva.services.documents.service.impl.DocumentsApiServiceImpl;
-import uy.com.bbva.services.documents.service.impl.FileApiServiceImpl;
-import uy.com.bbva.services.documents.service.impl.GenerateUnipersonalContractApiServiceImpl;
-import uy.com.bbva.services.documents.service.impl.SPIPDocumentControlImpl;
+import uy.com.bbva.services.documents.service.impl.*;
+import uy.com.bbva.services.documents.utils.FileUtils;
 
 import java.io.IOException;
 import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-class ServicesTests extends ServiceTest {
+@ExtendWith(MockitoExtension.class)
+class ServicesTests {
+
+    @Mock
+    private DAO dao;
+
+    @Mock
+    private LogUtils logUtils;
+
+    @Mock
+    private AccountIdManagement accountIdManagement;
+
+    @Mock
+    private CustomerIdManagement customerIdManagement;
+
+    @Mock
+    private NonCustomerIdManagement nonCustomerIdManagement;
+
+    @Mock
+    private FileUtils fileUtils;
+
+    @Mock
+    private GDocumentalServiceImpl gDocumentalService;
+
+    @Mock
+    private CallCustomersService callCustomersService;
+
+    @Spy
+    private GenerateContractApiServiceImpl generateContractApiService;
 
     @InjectMocks
     private DocumentsApiServiceImpl service;
@@ -53,12 +87,24 @@ class ServicesTests extends ServiceTest {
     @InjectMocks
     private GenerateUnipersonalContractApiServiceImpl unipContractService;
 
+    private NonBusinessIdDatatype nonBusinessIdDatatype;
+    private List<SpecificMetadata> specificMetadataList;
+
     @BeforeEach
     void setup() {
+        generateContractApiService = Mockito.spy(new GenerateContractApiServiceImpl());
+        setupContractGenerationServices(generateContractApiService, dao);
+
+        nonBusinessIdDatatype = TestDataFactory.createNonBusinessIdDatatype();
+        nonBusinessIdDatatype.setBusinessCountry(858);
+        nonBusinessIdDatatype.setBusinessDocumentType(2);
+        nonBusinessIdDatatype.setBusinessDocument("12345678");
+
+        specificMetadataList = new ArrayList<>();
 
         FileApiServiceImpl fileApiService = new FileApiServiceImpl();
 
-        ReflectionTestUtils.setField(fileApiService, "mapTemplateByCardProduct", getMapTemplateByCardProduct());
+        ReflectionTestUtils.setField(fileApiService, "mapTemplateByCardProduct", TestDataFactory.getMapTemplateByCardProduct());
         ReflectionTestUtils.setField(fileApiService, "fileUtils", fileUtils);
         ReflectionTestUtils.setField(fileApiService, "dao", dao);
         ReflectionTestUtils.setField(fileApiService, "generateContractApiService", generateContractApiService);
@@ -141,33 +187,33 @@ class ServicesTests extends ServiceTest {
             securityLevelInfo.setClassificationLevel(1);
             metaData.setSecurityLevelInfo(securityLevelInfo);
             final List<SpecificMetadata> specificMetatadataList = new ArrayList<>();
-            specificMetatadataList.add(specificMetadata("CUSTOMER_ID", FieldTypeEnum.STRING, "29141411"));
-            specificMetatadataList.add(specificMetadata("ENTITY", FieldTypeEnum.STRING, "VISA"));
-            specificMetatadataList.add(specificMetadata("PRODUCT_TYPE_ID", FieldTypeEnum.STRING, "685"));
-            specificMetatadataList.add(specificMetadata("DOCUMENT_NUMBER", FieldTypeEnum.STRING, "29141411"));
-            specificMetatadataList.add(specificMetadata("PRODUCT_TYPE", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("DUE_DATE", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CREDIT_LIMIT", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CARD_ADDRESS_STREET", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CARD_ADDRESS_NUMBER", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CARD_ADDRESS_APARTMENT", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CARD_ADDRESS_LOCATION", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CARD_ADDRESS_DEPARTMENT", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CARD_ADDRESS_POSTAL_CODE", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CARD_ADDRESS_STREET_2", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CARD_ADDRESS_NUMBER_2", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CARD_ADDRESS_APARTMENT_2", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CARD_ADDRESS_LOCATION_2", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CARD_ADDRESS_DEPARTMENT_2", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CARD_ADDRESS_POSTAL_CODE_2", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("ACCOUNT_ID", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("DOCUMENT_NUMBER", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CUSTOMER_NAME", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("DATE", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("MOBILE_NUMBER", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("EMAIL", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("DISPLAY_MOBILE_NUMBER", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("DISPLAY_EMAIL", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CUSTOMER_ID", FieldTypeEnum.STRING, "29141411"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("ENTITY", FieldTypeEnum.STRING, "VISA"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("PRODUCT_TYPE_ID", FieldTypeEnum.STRING, "685"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("DOCUMENT_NUMBER", FieldTypeEnum.STRING, "29141411"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("PRODUCT_TYPE", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("DUE_DATE", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CREDIT_LIMIT", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CARD_ADDRESS_STREET", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CARD_ADDRESS_NUMBER", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CARD_ADDRESS_APARTMENT", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CARD_ADDRESS_LOCATION", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CARD_ADDRESS_DEPARTMENT", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CARD_ADDRESS_POSTAL_CODE", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CARD_ADDRESS_STREET_2", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CARD_ADDRESS_NUMBER_2", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CARD_ADDRESS_APARTMENT_2", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CARD_ADDRESS_LOCATION_2", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CARD_ADDRESS_DEPARTMENT_2", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CARD_ADDRESS_POSTAL_CODE_2", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("ACCOUNT_ID", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("DOCUMENT_NUMBER", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CUSTOMER_NAME", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("DATE", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("MOBILE_NUMBER", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("EMAIL", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("DISPLAY_MOBILE_NUMBER", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("DISPLAY_EMAIL", FieldTypeEnum.STRING, "-"));
             metaData.setSpecificMetadataList(specificMetatadataList);
 
             final DocumentResponse documentResponse = service.postDocument(null, metaData, true, 7889121, "29122323");
@@ -216,16 +262,16 @@ class ServicesTests extends ServiceTest {
             metaData.setSecurityLevelInfo(securityLevelInfo);
 
             final List<SpecificMetadata> specificMetatadataList = new ArrayList<>();
-            specificMetatadataList.add(specificMetadata("CUSTOMER_ID", FieldTypeEnum.STRING, "29141411"));
-            specificMetatadataList.add(specificMetadata("ACCOUNT_ID", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("INITIAL_AMOUNT_AMOUNT", FieldTypeEnum.STRING, "100"));
-            specificMetatadataList.add(specificMetadata("INITIAL_AMOUNT_CURRENCY", FieldTypeEnum.STRING, "UYU"));
-            specificMetatadataList.add(specificMetadata("TERMS_NUMBER", FieldTypeEnum.STRING, "12"));
-            specificMetatadataList.add(specificMetadata("TERMS_FREQUENCY", FieldTypeEnum.STRING, "MONTHLY"));
-            specificMetatadataList.add(specificMetadata("INSTALLMENT_PLAN_INSTALLMENT_AMOUNT", FieldTypeEnum.STRING, "10"));
-            specificMetatadataList.add(specificMetadata("RATES_MODE", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("RATES_RATE_TYPE_ID", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("RATES_UNIT", FieldTypeEnum.STRING, "5"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CUSTOMER_ID", FieldTypeEnum.STRING, "29141411"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("ACCOUNT_ID", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("INITIAL_AMOUNT_AMOUNT", FieldTypeEnum.STRING, "100"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("INITIAL_AMOUNT_CURRENCY", FieldTypeEnum.STRING, "UYU"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("TERMS_NUMBER", FieldTypeEnum.STRING, "12"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("TERMS_FREQUENCY", FieldTypeEnum.STRING, "MONTHLY"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("INSTALLMENT_PLAN_INSTALLMENT_AMOUNT", FieldTypeEnum.STRING, "10"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("RATES_MODE", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("RATES_RATE_TYPE_ID", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("RATES_UNIT", FieldTypeEnum.STRING, "5"));
             metaData.setSpecificMetadataList(specificMetatadataList);
 
             final DocumentResponse documentResponse = service.postDocument(null, metaData, true, 7889121, "29122323");
@@ -266,39 +312,39 @@ class ServicesTests extends ServiceTest {
             securityLevelInfo.setClassificationLevel(1);
             metaData.setSecurityLevelInfo(securityLevelInfo);
             final List<SpecificMetadata> specificMetatadataList = new ArrayList<>();
-            specificMetatadataList.add(specificMetadata("CUSTOMER_ID", FieldTypeEnum.STRING, "29141411"));
-            specificMetatadataList.add(specificMetadata("ACCOUNT_ID", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("BRANCH", FieldTypeEnum.STRING, "50"));
-            specificMetatadataList.add(specificMetadata("RESIDENT", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("PEP_IS_PEP", FieldTypeEnum.STRING, "Si"));
-            specificMetatadataList.add(specificMetadata("PEP_IS_PEP", FieldTypeEnum.STRING, "No"));
-            specificMetatadataList.add(specificMetadata("PEP_BOUNDED", FieldTypeEnum.STRING, "Si"));
-            specificMetatadataList.add(specificMetadata("PEP_BOUNDED", FieldTypeEnum.STRING, "Mo"));
-            specificMetatadataList.add(specificMetadata("ACC_PURPOSE", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("ACC_THIRD_PARTY", FieldTypeEnum.STRING, "Si"));
-            specificMetatadataList.add(specificMetadata("ACC_THIRD_PARTY", FieldTypeEnum.STRING, "No"));
-            specificMetatadataList.add(specificMetadata("ACC_ADDRESS", FieldTypeEnum.STRING, "Si"));
-            specificMetatadataList.add(specificMetadata("ACC_ADDRESS", FieldTypeEnum.STRING, "No"));
-            specificMetatadataList.add(specificMetadata("ACC_AVENUE", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("ACC_EXTERIOR_NUMBER", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("ACC_INTERIOR_NUMBER", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("ACC_ADDRESS_COUNTRY", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("ACC_STATE", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("ACC_CITY", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("ACC_POSTAL_CODE", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("DOCUMENT_EXPIRATION_DATE", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("EDUCATION_STATE_SITUATION", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("WORK_STATE_SITUATION", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("COIN_TYPE", FieldTypeEnum.STRING, "Si"));
-            specificMetatadataList.add(specificMetadata("COIN_TYPE", FieldTypeEnum.STRING, "No"));
-            specificMetatadataList.add(specificMetadata("OPERATIVE_OWNER", FieldTypeEnum.STRING, "Si"));
-            specificMetatadataList.add(specificMetadata("OPERATIVE_OWNER", FieldTypeEnum.STRING, "No"));
-            specificMetatadataList.add(specificMetadata("PACKAGE_NAME", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("PACKAGE_DESC", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("ALTABBVA", FieldTypeEnum.STRING, "Si"));
-            specificMetatadataList.add(specificMetadata("ALTABBVA", FieldTypeEnum.STRING, "No"));
-            specificMetatadataList.add(specificMetadata("TOKENSMS", FieldTypeEnum.STRING, "Si"));
-            specificMetatadataList.add(specificMetadata("TOKENSMS", FieldTypeEnum.STRING, "No"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CUSTOMER_ID", FieldTypeEnum.STRING, "29141411"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("ACCOUNT_ID", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("BRANCH", FieldTypeEnum.STRING, "50"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("RESIDENT", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("PEP_IS_PEP", FieldTypeEnum.STRING, "Si"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("PEP_IS_PEP", FieldTypeEnum.STRING, "No"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("PEP_BOUNDED", FieldTypeEnum.STRING, "Si"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("PEP_BOUNDED", FieldTypeEnum.STRING, "Mo"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("ACC_PURPOSE", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("ACC_THIRD_PARTY", FieldTypeEnum.STRING, "Si"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("ACC_THIRD_PARTY", FieldTypeEnum.STRING, "No"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("ACC_ADDRESS", FieldTypeEnum.STRING, "Si"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("ACC_ADDRESS", FieldTypeEnum.STRING, "No"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("ACC_AVENUE", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("ACC_EXTERIOR_NUMBER", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("ACC_INTERIOR_NUMBER", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("ACC_ADDRESS_COUNTRY", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("ACC_STATE", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("ACC_CITY", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("ACC_POSTAL_CODE", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("DOCUMENT_EXPIRATION_DATE", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("EDUCATION_STATE_SITUATION", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("WORK_STATE_SITUATION", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("COIN_TYPE", FieldTypeEnum.STRING, "Si"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("COIN_TYPE", FieldTypeEnum.STRING, "No"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("OPERATIVE_OWNER", FieldTypeEnum.STRING, "Si"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("OPERATIVE_OWNER", FieldTypeEnum.STRING, "No"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("PACKAGE_NAME", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("PACKAGE_DESC", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("ALTABBVA", FieldTypeEnum.STRING, "Si"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("ALTABBVA", FieldTypeEnum.STRING, "No"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("TOKENSMS", FieldTypeEnum.STRING, "Si"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("TOKENSMS", FieldTypeEnum.STRING, "No"));
             metaData.setSpecificMetadataList(specificMetatadataList);
 
             final DocumentResponse documentResponse = service.postDocument(null, metaData, true, 7889121, "29122323");
@@ -334,33 +380,33 @@ class ServicesTests extends ServiceTest {
             securityLevelInfo.setClassificationLevel(1);
             metaData.setSecurityLevelInfo(securityLevelInfo);
             final List<SpecificMetadata> specificMetatadataList = new ArrayList<>();
-            specificMetatadataList.add(specificMetadata("CUSTOMER_ID", FieldTypeEnum.STRING, "29141411"));
-            specificMetatadataList.add(specificMetadata("ENTITY", FieldTypeEnum.STRING, "VISA"));
-            specificMetatadataList.add(specificMetadata("PRODUCT_TYPE_ID", FieldTypeEnum.STRING, "685"));
-            specificMetatadataList.add(specificMetadata("DOCUMENT_NUMBER", FieldTypeEnum.STRING, "29141411"));
-            specificMetatadataList.add(specificMetadata("PRODUCT_TYPE", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("DUE_DATE", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CREDIT_LIMIT", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CARD_ADDRESS_STREET", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CARD_ADDRESS_NUMBER", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CARD_ADDRESS_APARTMENT", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CARD_ADDRESS_LOCATION", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CARD_ADDRESS_DEPARTMENT", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CARD_ADDRESS_POSTAL_CODE", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CARD_ADDRESS_STREET_2", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CARD_ADDRESS_NUMBER_2", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CARD_ADDRESS_APARTMENT_2", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CARD_ADDRESS_LOCATION_2", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CARD_ADDRESS_DEPARTMENT_2", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CARD_ADDRESS_POSTAL_CODE_2", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("ACCOUNT_ID", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("DOCUMENT_NUMBER", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CUSTOMER_NAME", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("DATE", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("MOBILE_NUMBER", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("EMAIL", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("DISPLAY_MOBILE_NUMBER", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("DISPLAY_EMAIL", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CUSTOMER_ID", FieldTypeEnum.STRING, "29141411"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("ENTITY", FieldTypeEnum.STRING, "VISA"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("PRODUCT_TYPE_ID", FieldTypeEnum.STRING, "685"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("DOCUMENT_NUMBER", FieldTypeEnum.STRING, "29141411"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("PRODUCT_TYPE", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("DUE_DATE", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CREDIT_LIMIT", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CARD_ADDRESS_STREET", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CARD_ADDRESS_NUMBER", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CARD_ADDRESS_APARTMENT", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CARD_ADDRESS_LOCATION", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CARD_ADDRESS_DEPARTMENT", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CARD_ADDRESS_POSTAL_CODE", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CARD_ADDRESS_STREET_2", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CARD_ADDRESS_NUMBER_2", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CARD_ADDRESS_APARTMENT_2", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CARD_ADDRESS_LOCATION_2", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CARD_ADDRESS_DEPARTMENT_2", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CARD_ADDRESS_POSTAL_CODE_2", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("ACCOUNT_ID", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("DOCUMENT_NUMBER", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CUSTOMER_NAME", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("DATE", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("MOBILE_NUMBER", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("EMAIL", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("DISPLAY_MOBILE_NUMBER", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("DISPLAY_EMAIL", FieldTypeEnum.STRING, "-"));
             metaData.setSpecificMetadataList(specificMetatadataList);
 
             final DocumentResponse documentResponse = service.postDocument(null, metaData, true, 7889121, "29122323");
@@ -401,16 +447,16 @@ class ServicesTests extends ServiceTest {
             securityLevelInfo.setClassificationLevel(1);
             metaData.setSecurityLevelInfo(securityLevelInfo);
             final List<SpecificMetadata> specificMetatadataList = new ArrayList<>();
-            specificMetatadataList.add(specificMetadata("CUSTOMER_ID", FieldTypeEnum.STRING, "29141411"));
-            specificMetatadataList.add(specificMetadata("ACCOUNT_ID", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("INITIAL_AMOUNT_AMOUNT", FieldTypeEnum.STRING, "100"));
-            specificMetatadataList.add(specificMetadata("INITIAL_AMOUNT_CURRENCY", FieldTypeEnum.STRING, "UYU"));
-            specificMetatadataList.add(specificMetadata("TERMS_NUMBER", FieldTypeEnum.STRING, "12"));
-            specificMetatadataList.add(specificMetadata("TERMS_FREQUENCY", FieldTypeEnum.STRING, "MONTHLY"));
-            specificMetatadataList.add(specificMetadata("INSTALLMENT_PLAN_INSTALLMENT_AMOUNT", FieldTypeEnum.STRING, "10"));
-            specificMetatadataList.add(specificMetadata("RATES_MODE", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("RATES_RATE_TYPE_ID", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("RATES_UNIT", FieldTypeEnum.STRING, "5"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CUSTOMER_ID", FieldTypeEnum.STRING, "29141411"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("ACCOUNT_ID", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("INITIAL_AMOUNT_AMOUNT", FieldTypeEnum.STRING, "100"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("INITIAL_AMOUNT_CURRENCY", FieldTypeEnum.STRING, "UYU"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("TERMS_NUMBER", FieldTypeEnum.STRING, "12"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("TERMS_FREQUENCY", FieldTypeEnum.STRING, "MONTHLY"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("INSTALLMENT_PLAN_INSTALLMENT_AMOUNT", FieldTypeEnum.STRING, "10"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("RATES_MODE", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("RATES_RATE_TYPE_ID", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("RATES_UNIT", FieldTypeEnum.STRING, "5"));
             metaData.setSpecificMetadataList(specificMetatadataList);
 
             final DocumentResponse documentResponse = service.postDocument(null, metaData, true, 7889121, "29122323");
@@ -451,16 +497,16 @@ class ServicesTests extends ServiceTest {
             securityLevelInfo.setClassificationLevel(1);
             metaData.setSecurityLevelInfo(securityLevelInfo);
             final List<SpecificMetadata> specificMetatadataList = new ArrayList<>();
-            specificMetatadataList.add(specificMetadata("CUSTOMER_ID", FieldTypeEnum.STRING, "29141411"));
-            specificMetatadataList.add(specificMetadata("ACCOUNT_ID", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("INITIAL_AMOUNT_AMOUNT", FieldTypeEnum.STRING, "100"));
-            specificMetatadataList.add(specificMetadata("INITIAL_AMOUNT_CURRENCY", FieldTypeEnum.STRING, "UYU"));
-            specificMetatadataList.add(specificMetadata("TERMS_NUMBER", FieldTypeEnum.STRING, "12"));
-            specificMetatadataList.add(specificMetadata("TERMS_FREQUENCY", FieldTypeEnum.STRING, "MONTHLY"));
-            specificMetatadataList.add(specificMetadata("INSTALLMENT_PLAN_INSTALLMENT_AMOUNT", FieldTypeEnum.STRING, "10"));
-            specificMetatadataList.add(specificMetadata("RATES_MODE", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("RATES_RATE_TYPE_ID", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("RATES_UNIT", FieldTypeEnum.STRING, "5"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CUSTOMER_ID", FieldTypeEnum.STRING, "29141411"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("ACCOUNT_ID", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("INITIAL_AMOUNT_AMOUNT", FieldTypeEnum.STRING, "100"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("INITIAL_AMOUNT_CURRENCY", FieldTypeEnum.STRING, "UYU"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("TERMS_NUMBER", FieldTypeEnum.STRING, "12"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("TERMS_FREQUENCY", FieldTypeEnum.STRING, "MONTHLY"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("INSTALLMENT_PLAN_INSTALLMENT_AMOUNT", FieldTypeEnum.STRING, "10"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("RATES_MODE", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("RATES_RATE_TYPE_ID", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("RATES_UNIT", FieldTypeEnum.STRING, "5"));
             metaData.setSpecificMetadataList(specificMetatadataList);
 
             final DocumentResponse documentResponse = service.postDocument(null, metaData, true, 7889121, "29122323");
@@ -501,10 +547,10 @@ class ServicesTests extends ServiceTest {
             securityLevelInfo.setClassificationLevel(1);
             metaData.setSecurityLevelInfo(securityLevelInfo);
             final List<SpecificMetadata> specificMetatadataList = new ArrayList<>();
-            specificMetatadataList.add(specificMetadata("CUSTOMER_ID", FieldTypeEnum.STRING, "29141411"));
-            specificMetatadataList.add(specificMetadata("ACCOUNT_ID", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("OBVERSE_IMAGE", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("REVERSE_IMAGE", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CUSTOMER_ID", FieldTypeEnum.STRING, "29141411"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("ACCOUNT_ID", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("OBVERSE_IMAGE", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("REVERSE_IMAGE", FieldTypeEnum.STRING, "-"));
             metaData.setSpecificMetadataList(specificMetatadataList);
 
             final DocumentResponse documentResponse = service.postDocument(null, metaData, true, 7889121, "29122323");
@@ -545,14 +591,14 @@ class ServicesTests extends ServiceTest {
             securityLevelInfo.setClassificationLevel(1);
             metaData.setSecurityLevelInfo(securityLevelInfo);
             final List<SpecificMetadata> specificMetatadataList = new ArrayList<>();
-            specificMetatadataList.add(specificMetadata("CUSTOMER_ID", FieldTypeEnum.STRING, "29141411"));
-            specificMetatadataList.add(specificMetadata("ACCOUNT_ID", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("ACCOUNT_NUMBER", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("DOCUMENT_NUMBER", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("VERSION", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("DATE", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("HOUR", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CLIENT_ADDRESS", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CUSTOMER_ID", FieldTypeEnum.STRING, "29141411"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("ACCOUNT_ID", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("ACCOUNT_NUMBER", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("DOCUMENT_NUMBER", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("VERSION", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("DATE", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("HOUR", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CLIENT_ADDRESS", FieldTypeEnum.STRING, "-"));
             metaData.setSpecificMetadataList(specificMetatadataList);
 
             final DocumentResponse documentResponse = service.postDocument(null, metaData, true, 7889121, "29122323");
@@ -593,14 +639,14 @@ class ServicesTests extends ServiceTest {
             securityLevelInfo.setClassificationLevel(1);
             metaData.setSecurityLevelInfo(securityLevelInfo);
             final List<SpecificMetadata> specificMetatadataList = new ArrayList<>();
-            specificMetatadataList.add(specificMetadata("ACCOUNT_ID", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("MUST_SHOW_DRAFT", FieldTypeEnum.STRING, "Si"));
-            specificMetatadataList.add(specificMetadata("NON_CUSTOMER_ID", FieldTypeEnum.STRING, "29141411"));
-            specificMetatadataList.add(specificMetadata("LOAN_QUANTITY", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("ARRANGEMENT_DATE", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CLIENT_NAME", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("DOCUMENT_NUMBER", FieldTypeEnum.STRING, "-"));
-            specificMetatadataList.add(specificMetadata("CLIENT_ADDRESS", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("ACCOUNT_ID", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("MUST_SHOW_DRAFT", FieldTypeEnum.STRING, "Si"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("NON_CUSTOMER_ID", FieldTypeEnum.STRING, "29141411"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("LOAN_QUANTITY", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("ARRANGEMENT_DATE", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CLIENT_NAME", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("DOCUMENT_NUMBER", FieldTypeEnum.STRING, "-"));
+            specificMetatadataList.add(TestDataFactory.specificMetadata("CLIENT_ADDRESS", FieldTypeEnum.STRING, "-"));
             metaData.setSpecificMetadataList(specificMetatadataList);
 
             final DocumentResponse documentResponse = service.postDocument(null, metaData, true, 7889121, "29122323");
@@ -620,10 +666,10 @@ class ServicesTests extends ServiceTest {
 
     @Test
     void postDocument_shouldHandleCaasException_whenCustomerIdDecryptFails() throws CaasException {
-        MetaData metaData = mockDocumentData("LOAN_CONTRACT");
+        MetaData metaData = TestDataFactory.mockDocumentData("LOAN_CONTRACT");
         List<SpecificMetadata> specificMetadataList = new ArrayList<>();
-        specificMetadataList.add(specificMetadata("CUSTOMER_ID", FieldTypeEnum.STRING, "invalid"));
-        specificMetadataList.add(specificMetadata("ACCOUNT_ID", FieldTypeEnum.STRING, "123456"));
+        specificMetadataList.add(TestDataFactory.specificMetadata("CUSTOMER_ID", FieldTypeEnum.STRING, "invalid"));
+        specificMetadataList.add(TestDataFactory.specificMetadata("ACCOUNT_ID", FieldTypeEnum.STRING, "123456"));
         metaData.setSpecificMetadataList(specificMetadataList);
 
         when(customerIdManagement.getCustomerIdDatatypeFromCustomerId(anyString()))
@@ -637,9 +683,9 @@ class ServicesTests extends ServiceTest {
 
     @Test
     void postDocument_shouldThrowBusinessException_whenCustomerIdNullAndNotDraft() throws Exception {
-        MetaData metaData = mockDocumentData("CCH_CONTRACT");
+        MetaData metaData = TestDataFactory.mockDocumentData("CCH_CONTRACT");
 
-        specificMetadataList.add(specificMetadata("NON_CUSTOMER_ID", FieldTypeEnum.STRING, "29141411"));
+        specificMetadataList.add(TestDataFactory.specificMetadata("NON_CUSTOMER_ID", FieldTypeEnum.STRING, "29141411"));
         metaData.setSpecificMetadataList(specificMetadataList);
 
         BusinessException exception = assertThrows(BusinessException.class,
@@ -676,17 +722,17 @@ class ServicesTests extends ServiceTest {
         final MetaData metaData = new MetaData();
         final List<SpecificMetadata> specificMetadataList = new ArrayList<>();
 
-        specificMetadataList.add(specificMetadata("accountNumber", FieldTypeEnum.STRING, "200001"));
-        specificMetadataList.add(specificMetadata("userDocumentNumber", FieldTypeEnum.STRING, "200001"));
-        specificMetadataList.add(specificMetadata("userDocumentCountry", FieldTypeEnum.STRING, "845"));
-        specificMetadataList.add(specificMetadata("userDocumentType", FieldTypeEnum.STRING, "1"));
-        specificMetadataList.add(specificMetadata("documentClass", FieldTypeEnum.STRING, "200001"));
-        specificMetadataList.add(specificMetadata("mimeType", FieldTypeEnum.STRING, "200001"));
-        specificMetadataList.add(specificMetadata("fileName", FieldTypeEnum.STRING, "200001"));
-        specificMetadataList.add(specificMetadata("sendMail", FieldTypeEnum.STRING, "true"));
-        specificMetadataList.add(specificMetadata("fileSentToFilenet", FieldTypeEnum.STRING, "true"));
-        specificMetadataList.add(specificMetadata("fileSentByMail", FieldTypeEnum.STRING, "true"));
-        specificMetadataList.add(specificMetadata("ready", FieldTypeEnum.STRING, "true"));
+        specificMetadataList.add(TestDataFactory.specificMetadata("accountNumber", FieldTypeEnum.STRING, "200001"));
+        specificMetadataList.add(TestDataFactory.specificMetadata("userDocumentNumber", FieldTypeEnum.STRING, "200001"));
+        specificMetadataList.add(TestDataFactory.specificMetadata("userDocumentCountry", FieldTypeEnum.STRING, "845"));
+        specificMetadataList.add(TestDataFactory.specificMetadata("userDocumentType", FieldTypeEnum.STRING, "1"));
+        specificMetadataList.add(TestDataFactory.specificMetadata("documentClass", FieldTypeEnum.STRING, "200001"));
+        specificMetadataList.add(TestDataFactory.specificMetadata("mimeType", FieldTypeEnum.STRING, "200001"));
+        specificMetadataList.add(TestDataFactory.specificMetadata("fileName", FieldTypeEnum.STRING, "200001"));
+        specificMetadataList.add(TestDataFactory.specificMetadata("sendMail", FieldTypeEnum.STRING, "true"));
+        specificMetadataList.add(TestDataFactory.specificMetadata("fileSentToFilenet", FieldTypeEnum.STRING, "true"));
+        specificMetadataList.add(TestDataFactory.specificMetadata("fileSentByMail", FieldTypeEnum.STRING, "true"));
+        specificMetadataList.add(TestDataFactory.specificMetadata("ready", FieldTypeEnum.STRING, "true"));
 
         metaData.setSpecificMetadataList(specificMetadataList);
         metaData.setId("00000000-0000-0000-0000-000000000000");
@@ -721,7 +767,7 @@ class ServicesTests extends ServiceTest {
         final MetaData metadata = new MetaData();
         final List<SpecificMetadata> specificMetadataList = new ArrayList<>();
 
-        specificMetadataList.add(specificMetadata("NON_CUSTOMER_ID", FieldTypeEnum.STRING, "customer-id"));
+        specificMetadataList.add(TestDataFactory.specificMetadata("NON_CUSTOMER_ID", FieldTypeEnum.STRING, "customer-id"));
         metadata.setSpecificMetadataList(specificMetadataList);
         assertTrue(spipDocumentControl.metadataCustomerBelongToUser(metadata, "29141411"));
     }
@@ -780,8 +826,8 @@ class ServicesTests extends ServiceTest {
         final MetaData metadata = new MetaData();
         final List<SpecificMetadata> specificMetadataList = new ArrayList<>();
 
-        specificMetadataList.add(specificMetadata("EMAIL", FieldTypeEnum.STRING, "test@test.com"));
-        specificMetadataList.add(specificMetadata("MOBILE_NUMBER", FieldTypeEnum.STRING, "099123456"));
+        specificMetadataList.add(TestDataFactory.specificMetadata("EMAIL", FieldTypeEnum.STRING, "test@test.com"));
+        specificMetadataList.add(TestDataFactory.specificMetadata("MOBILE_NUMBER", FieldTypeEnum.STRING, "099123456"));
         metadata.setSpecificMetadataList(specificMetadataList);
         assertTrue(spipDocumentControl.metadataContactDetailsValidation("29141411", 1, 845, metadata));
 
@@ -802,8 +848,8 @@ class ServicesTests extends ServiceTest {
         final MetaData metadata = new MetaData();
         final List<SpecificMetadata> specificMetadataList = new ArrayList<>();
 
-        specificMetadataList.add(specificMetadata("EMAIL", FieldTypeEnum.STRING, "test@test.com"));
-        specificMetadataList.add(specificMetadata("MOBILE_NUMBER", FieldTypeEnum.STRING, "099123456"));
+        specificMetadataList.add(TestDataFactory.specificMetadata("EMAIL", FieldTypeEnum.STRING, "test@test.com"));
+        specificMetadataList.add(TestDataFactory.specificMetadata("MOBILE_NUMBER", FieldTypeEnum.STRING, "099123456"));
         metadata.setSpecificMetadataList(specificMetadataList);
         assertFalse(spipDocumentControl.metadataContactDetailsValidation("29141411", 1, 845, metadata));
 
@@ -1096,5 +1142,38 @@ class ServicesTests extends ServiceTest {
         verify(dao, never()).getNonBusinessLegalAddressMap(any());
         verify(dao, never()).getNonBusinessHomeAddressMap(any());
 
+    }
+
+    // ========== HELPER METHODS ==========
+
+    private void setupContractGenerationServices(GenerateContractApiServiceImpl contractService, DAO dao) {
+        Map<String, Class<?>> serviceMap = new LinkedHashMap<>();
+        serviceMap.put("generateLoansContractService", GenerateLoansContractApiServiceImpl.class);
+        serviceMap.put("generateCreditCardContractService", GenerateCreditCardContractApiServiceImpl.class);
+        serviceMap.put("generateAdditionalCCContractService", GenerateAdditionalCCContractApiServiceImpl.class);
+        serviceMap.put("generateFTDContractService", GenerateFTDContractApiServiceImpl.class);
+        serviceMap.put("generateAccountContractService", GenerateAccountContractApiServiceImpl.class);
+        serviceMap.put("generateIMGDocumentIDApiService", GenerateIMGDocumentIDApiServiceImpl.class);
+        serviceMap.put("generateAcceptTermsAndConditionsDocumentApiService",
+                GenerateAcceptTermsAndConditionsDocumentApiServiceImpl.class);
+        serviceMap.put("generateLoanAcknowledgmentApiService", GenerateLoanAcknowledgmentApiServiceImpl.class);
+        serviceMap.put("generateUnipersonalContractApiService", GenerateUnipersonalContractApiServiceImpl.class);
+
+        Set<String> servicesNeedingDao = Set.of("generateLoansContractService");
+
+        serviceMap.forEach((fieldName, serviceClass) -> {
+            try {
+                Object serviceInstance = serviceClass.getDeclaredConstructor().newInstance();
+
+                if (servicesNeedingDao.contains(fieldName)) {
+                    ReflectionTestUtils.setField(serviceInstance, "dao", dao);
+                }
+
+                ReflectionTestUtils.setField(contractService, fieldName, serviceInstance);
+
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to setup service: " + fieldName, e);
+            }
+        });
     }
 }
