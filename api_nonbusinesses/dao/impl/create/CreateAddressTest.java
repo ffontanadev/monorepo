@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static uy.com.bbva.dtos.commons.utils.Constants.RUT_DOCUMENT_TYPE;
 import static uy.com.bbva.dtos.commons.utils.Constants.UY_COUNTRY_CODE;
+import static uy.com.bbva.services.nonbusinesses.common.SqlExceptionScenarios.*;
 import static uy.com.bbva.services.nonbusinesses.common.TestDataFactory.*;
 
 /**
@@ -188,10 +189,10 @@ class CreateAddressTest extends DAOCreateTest {
     // ========== Exception Handling ==========
 
     @ParameterizedTest(name = "[{index}] SQLException en: {0}")
-    @EnumSource(SqlExceptionScenario.class)
+    @EnumSource(SqlExceptionScenarios.class)
     @DisplayName("Debe lanzar ServiceException cuando ocurre SQLException en diferentes puntos")
     void createAddress_givenSQLExceptionAtDifferentPoints_throwsServiceException(
-            SqlExceptionScenario scenario) throws Exception {
+            SqlExceptionScenarios scenario) throws Exception {
 
         SQLException sqlException = new SQLException(scenario.getErrorMessage());
         scenario.setupMockBehavior(this, sqlException);
@@ -201,60 +202,6 @@ class CreateAddressTest extends DAOCreateTest {
 
         verifyServiceException(exception, sqlException, scenario.getErrorMessage());
         scenario.verifyResourceClosure(this);
-    }
-
-    /**
-     * Enum que representa los diferentes puntos donde puede fallar una operación de creación.
-     */
-    enum SqlExceptionScenario {
-        PREPARE_CALL("Database connection error") {
-            @Override
-            void setupMockBehavior(DAOCreateTest test, SQLException exception) throws SQLException {
-                test.setupPrepareCallException(exception);
-            }
-
-            @Override
-            void verifyResourceClosure(DAOCreateTest test) throws SQLException {
-                test.verifyResourceClosedOnPrepareFailure();
-            }
-        },
-
-        EXECUTE("Insert failed") {
-            @Override
-            void setupMockBehavior(DAOCreateTest test, SQLException exception) throws SQLException {
-                test.setupExecuteException(exception);
-            }
-
-            @Override
-            void verifyResourceClosure(DAOCreateTest test) throws SQLException {
-                test.verifyResourceClosedOnException();
-            }
-        },
-
-        PARAMETER_SETTING("Parameter setting failed") {
-            @Override
-            void setupMockBehavior(DAOCreateTest test, SQLException exception) throws SQLException {
-                test.setupParameterSettingException(exception);
-            }
-
-            @Override
-            void verifyResourceClosure(DAOCreateTest test) throws SQLException {
-                test.verifyResourceClosedOnException();
-            }
-        };
-
-        private final String errorMessage;
-
-        SqlExceptionScenario(String errorMessage) {
-            this.errorMessage = errorMessage;
-        }
-
-        String getErrorMessage() {
-            return errorMessage;
-        }
-
-        abstract void setupMockBehavior(DAOCreateTest test, SQLException exception) throws SQLException;
-        abstract void verifyResourceClosure(DAOCreateTest test) throws SQLException;
     }
 
     // ========== Edge Cases ==========

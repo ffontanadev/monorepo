@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static uy.com.bbva.dtos.commons.utils.Constants.RUT_DOCUMENT_TYPE;
 import static uy.com.bbva.dtos.commons.utils.Constants.UY_COUNTRY_CODE;
+import static uy.com.bbva.services.nonbusinesses.common.SqlExceptionScenarios.*;
 import static uy.com.bbva.services.nonbusinesses.common.TestDataFactory.*;
 
 /**
@@ -143,10 +144,10 @@ class UpdateBusinessInformationTest extends DAOUpdateTest {
     // ========== Exception Handling ==========
 
     @ParameterizedTest(name = "[{index}] SQLException en: {0}")
-    @EnumSource(SqlExceptionScenario.class)
+    @EnumSource(SqlExceptionScenarios.class)
     @DisplayName("Debe lanzar ServiceException cuando ocurre SQLException en diferentes puntos")
     void updateBusinessInformation_givenSQLExceptionAtDifferentPoints_throwsServiceException(
-            SqlExceptionScenario scenario) throws Exception {
+            SqlExceptionScenarios scenario) throws Exception{
 
         SQLException sqlException = new SQLException(scenario.getErrorMessage());
         scenario.setupMockBehavior(this, sqlException);
@@ -156,60 +157,6 @@ class UpdateBusinessInformationTest extends DAOUpdateTest {
 
         verifyServiceException(exception, sqlException, scenario.getErrorMessage());
         scenario.verifyResourceClosure(this);
-    }
-
-    /**
-     * Enum que representa los diferentes puntos donde puede fallar una operación de update.
-     */
-    enum SqlExceptionScenario {
-        PREPARE_STATEMENT(DB_CONNECTION_ERROR) {
-            @Override
-            void setupMockBehavior(DAOUpdateTest test, SQLException exception) throws SQLException {
-                test.setupPrepareStatementException(exception);
-            }
-
-            @Override
-            void verifyResourceClosure(DAOUpdateTest test) throws SQLException {
-                test.verifyResourceClosedOnPrepareFailure();
-            }
-        },
-
-        EXECUTE_UPDATE(UPDATE_FAILED_ERROR) {
-            @Override
-            void setupMockBehavior(DAOUpdateTest test, SQLException exception) throws SQLException {
-                test.setupExecuteUpdateException(exception);
-            }
-
-            @Override
-            void verifyResourceClosure(DAOUpdateTest test) throws SQLException {
-                test.verifyResourceClosedOnException();
-            }
-        },
-
-        PARAMETER_SETTING(PARAMETER_SETTING_ERROR) {
-            @Override
-            void setupMockBehavior(DAOUpdateTest test, SQLException exception) throws SQLException {
-                test.setupParameterSettingException(exception);
-            }
-
-            @Override
-            void verifyResourceClosure(DAOUpdateTest test) throws SQLException {
-                test.verifyResourceClosedOnException();
-            }
-        };
-
-        private final String errorMessage;
-
-        SqlExceptionScenario(String errorMessage) {
-            this.errorMessage = errorMessage;
-        }
-
-        String getErrorMessage() {
-            return errorMessage;
-        }
-
-        abstract void setupMockBehavior(DAOUpdateTest test, SQLException exception) throws SQLException;
-        abstract void verifyResourceClosure(DAOUpdateTest test) throws SQLException;
     }
 
     // ========== Edge Case  ==========
